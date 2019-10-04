@@ -83,6 +83,35 @@ In order to upgrade, delete the CouchDB StatefulSet before upgrading:
 $ kubectl delete statefulsets --cascade=false my-release-couchdb
 ```
 
+## Telemetry
+
+By default the chart will deploy a sidecar instance of the [CouchDB Prometheus exporter](https://github.com/gesellix/couchdb-prometheus-exporter) to each CouchDB node.
+
+The following Promethreus scrape configuration can be used to collect per-node CouchDB metrics:
+
+```
+- job_name: couchdb
+  scrape_interval: 10s
+  kubernetes_sd_configs:
+  - role: pod
+  relabel_configs:
+  - source_labels: [__meta_kubernetes_namespace]
+      action: replace
+      target_label: k8s_namespace
+  - source_labels: [__meta_kubernetes_pod_name]
+      action: replace
+      target_label: k8s_pod_name
+  - source_labels: [__address__]
+      action: replace
+      regex: ([^:]+)(?::\d+)?
+      replacement: ${1}:9984
+      target_label: __address__
+  - source_labels: [__meta_kubernetes_pod_label_app]
+      action: keep
+      regex: couchdb
+```
+
+
 ## Configuration
 
 The following table lists the most commonly configured parameters of the
@@ -99,6 +128,7 @@ CouchDB chart and their default values:
 | `persistentVolume.enabled`      | Boolean determining whether to attach a PV to each node | false
 | `persistentVolume.size`         | If enabled, the size of the persistent volume to attach                          | 10Gi
 | `enableSearch`                  | Adds a sidecar for Lucene-powered text search         | false                                  |
+| `telemetry.enabled`             | Adds a sidecar to expose CouchDB metrics to Prometheus| true                                   |
 
 A variety of other parameters are also configurable. See the comments in the
 `values.yaml` file for further details:
@@ -114,6 +144,9 @@ A variety of other parameters are also configurable. See the comments in the
 | `searchImage.repository`        | kocolosk/couchdb-search                |
 | `searchImage.tag`               | 0.1.0                                  |
 | `searchImage.pullPolicy`        | IfNotPresent                           |
+| `telemetryImage.repository`     | gesellix/couchdb-prometheus-exporter   |
+| `telemetryImage.tag`            | latest                                 |
+| `telemetryImage.pullPolicy`     | IfNotPresent                           |
 | `initImage.repository`          | busybox                                |
 | `initImage.tag`                 | latest                                 |
 | `initImage.pullPolicy`          | Always                                 |
@@ -131,3 +164,4 @@ A variety of other parameters are also configurable. See the comments in the
 | `service.type`                  | ClusterIP                              |
 | `service.externalPort`          | 5984                                   |
 | `dns.clusterDomainSuffix`       | cluster.local                          |
+| `telemetry.databases`           |                                        |

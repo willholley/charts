@@ -18,6 +18,11 @@ spec:
     metadata:
       labels:
 {{ include "couchdb.ss.selector" . | indent 8 }}
+      annotations:
+{{- if .Values.telemetry.enabled }}
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '9984'
+{{- end }}
     spec:
       {{- if .Values.schedulerName }}
       schedulerName: "{{ .Values.schedulerName }}"
@@ -101,13 +106,47 @@ spec:
           - name: database-storage
             mountPath: /opt/couchdb-search/data
 {{- end }}
+{{- if .Values.telemetry.enabled }}
+        - name: telemetry
+          image: "{{ .Values.telemetryImage.repository }}:{{ .Values.telemetryImage.tag }}"
+          imagePullPolicy: {{ .Values.telemetryImage.pullPolicy }}
+          ports:
+            - name: telemetry
+              containerPort: 9984
+          args: ["--couchdb.uri=http://localhost:5984"]
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 9984
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9984
+          resources:
+{{ toYaml .Values.telemetry.resources | indent 12 }}
+          env:
+            - name: DATABASES
+              value: {{- .Values.telemetry.databases }}
+{{- if not .Values.allowAdminParty }}
+            - name: "COUCHDB.USERNAME"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "couchdb.fullname" . }}
+                  key: adminUsername
+            - name: "COUCHDB.PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "couchdb.fullname" . }}
+                  key: adminPassword
+{{- end }}
+{{- end }}
 {{- if .Values.nodeSelector }}
       nodeSelector:
-{{ toYaml .Values.nodeSelector | indent 8 }}
+{{- toYaml .Values.nodeSelector | indent 8 }}
 {{- end }}
 {{- with .Values.affinity }}
       affinity:
-{{ toYaml . | indent 8 }}
+{{- toYaml . | indent 8 }}
 {{- end }}
       volumes:
         - name: config-storage
